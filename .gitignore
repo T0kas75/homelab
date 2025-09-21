@@ -1,0 +1,26 @@
+# Node/OS junk
+.DS_Store
+
+# Any local overrides / secrets
+*.env
+*.env.local
+
+# Traefik cert store
+homestack/traefik/acme/acme.json
+
+# Docker volumes/data we never want in git
+/opt/**/data/
+/opt/**/db/
+/opt/**/redis/
+/opt/**/nextcloud_data/
+/opt/**/sftpgo/data/
+/opt/**/sftpgo/home/
+/opt/**/mailu/
+/opt/**/certs/
+
+# Mailcow heavy/generative stuff
+/opt/mailcow/data/
+/opt/mailcow/docker-compose.yml
+/opt/mailcow/docker-compose.override.yaml  # (if you switch name)
+/opt/mailcow/.env
+/opt/mailcow/backup/
