@@ -2,49 +2,52 @@
 set -euo pipefail
 
 # Usage:
-#   ./git-sync.sh "commit message"
-# If you omit the message, a timestamped one is used.
+#   ./git-sync.sh -m "your message"
+#   ./git-sync.sh         # auto message with timestamp
 
-# 1) Make sure we're inside a git repo
-git rev-parse --is-inside-work-tree >/dev/null 2>&1 || {
-  echo "Not a git repo (run inside your project)"; exit 1;
-}
+# go to repo root (no matter where you run it)
+repo_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+if [[ -z "$repo_root" ]]; then
+  echo "Not inside a git repo." >&2
+  exit 1
+fi
+cd "$repo_root"
 
-# 2) Determine branch and remote
-branch="$(git rev-parse --abbrev-ref HEAD)"
-remote="origin"
+# default commit message
+msg="${1:-}"
+if [[ "$msg" == "-m" ]]; then
+  shift || true
+  msg="${1:-}"
+fi
+if [[ -z "$msg" ]]; then
+  msg="chore: sync $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
+fi
 
-# 3) Build commit message
-msg="${1:-chore: sync $(date -u +'%Y-%m-%d %H:%M:%SZ')}"
-
-# 4) Stage everything that isn't ignored
+# stage changes (including new/removed files)
 git add -A
 
-# 5) If there’s nothing to commit, skip the commit step
-if git diff --staged --quiet; then
-  echo "Nothing to commit (working tree clean)."
+# nothing to commit?
+if git diff --cached --quiet; then
+  echo "No changes to commit."
 else
   git commit -m "$msg"
 fi
 
-# 6) Ensure remote exists
-git remote get-url "$remote" >/dev/null 2>&1 || {
-  echo "Remote '$remote' not set. Add one like:"
-  echo "  git remote add origin git@github.com:<you>/<repo>.git"
-  exit 1
-}
+# pick current branch
+branch="$(git rev-parse --abbrev-ref HEAD)"
 
-# 7) If no upstream is set, set it on first push
-if ! git rev-parse --abbrev-ref --symbolic-full-name "@{u}" >/dev/null 2>&1; then
-  echo "No upstream for '$branch'. Setting upstream on first push…"
-  git push -u "$remote" "$branch"
-  exit 0
+# make sure remote exists
+remote="origin"
+if ! git remote get-url "$remote" >/dev/null 2>&1; then
+  echo "Remote 'origin' is missing. Add it with:"
+  echo "  git remote add origin <url>"
+  exit 1
 fi
 
-# 8) Rebase-pull to avoid merge commits, auto-stash local changes if any
-git pull --rebase --autostash "$remote" "$branch"
+# push (set upstream automatically if needed)
+if git rev-parse --symbolic-full-name --verify "refs/remotes/$remote/$branch" >/dev/null 2>&1; then
+  git push "$remote" "$branch"
+else
+  git push -u "$remote" "$branch"
+fi
 
-# 9) Push
-git push "$remote" "$branch"
-
-echo "✅ Synced: $branch → $remote"
